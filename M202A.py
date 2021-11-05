@@ -4,7 +4,34 @@ import cv2
 import numpy as np
 from sewar.full_ref import mse, rmse, psnr, uqi, ssim, ergas, scc, rase, sam, msssim, vifp
 
-# Need to implement person tracking - who's who, who lost, who won, game system
+# Need to implement person tracking - who's who, game system, double camera, laser, real time processing
+
+def compare_ssim(old, new, downsample_factor):
+    downsample_old = cv2.resize(old, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
+    downsample_new = cv2.resize(new, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
+    
+    m = [downsample_old.shape[0], downsample_new.shape[0]].index(min(downsample_old.shape[0], downsample_new.shape[0]))
+    n = [downsample_old.shape[1], downsample_new.shape[1]].index(min(downsample_old.shape[1], downsample_new.shape[1]))
+    y = [downsample_old.shape[0], downsample_new.shape[0]][m]
+    x = [downsample_old.shape[1], downsample_new.shape[1]][n]
+    y = int(y/2)
+    x = int(x/2)
+    downsample_old = downsample_old[int(downsample_old.shape[0]/2)-y:int(downsample_old.shape[0]/2)+y,
+                                    int(downsample_old.shape[1]/2)-x:int(downsample_old.shape[1]/2)+x]
+    downsample_new = downsample_new[int(downsample_new.shape[0]/2)-y:int(downsample_new.shape[0]/2)+y,
+                                    int(downsample_new.shape[1]/2)-x:int(downsample_new.shape[1]/2)+x]
+    
+    #print("MSE: ", mse(downsample_new,downsample_old))
+    #print("RMSE: ", rmse(downsample_new, downsample_old))
+    #print("PSNR: ", psnr(downsample_new, downsample_old))
+    #print("SSIM: ", ssim(downsample_new, downsample_old))
+    #print("UQI: ", uqi(downsample_new, downsample_old))
+    #print("ERGAS: ", ergas(downsample_new, downsample_old))
+    #err = scc(downsample_new, downsample_old)
+    #print("RASE: ", rase(downsample_new, downsample_old))
+    #print("SAM: ", sam(downsample_new, downsample_old))
+    
+    return np.mean(ssim(downsample_new, downsample_old))
 
 class Person:
     def __init__(self, img, origin, box, center_thres, box_thres ,number):
@@ -16,6 +43,9 @@ class Person:
         self.number = number
         self.area = 1000000
         self.person_old_box = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)[box[1]:box[1]+box[3],box[0]:box[0]+box[2]]
+        self.person_color = np.mean(cv2.cvtColor(img[box[1]:box[1]+box[3],box[0]:box[0]+box[2]], cv2.COLOR_RGB2HSV))
+        self.warning = 0
+        self.out = 0
     
     def player_num(self):
         # Return player number
@@ -38,45 +68,28 @@ class Person:
         change_in_box = abs(old_x_len-new_x_len)+abs(old_y_len-new_y_len)
         
         # Determine movement
-        if self.number == 1:
+        if self.out == 0:
             if change_in_center > self.center_thres*(old_x_len*old_y_len)/self.area or change_in_box > (self.box_thres*(old_x_len*old_y_len)/self.area):
                 print('player %d : movement detected' % self.number)
+                self.warning += 1
+                if self.warning == 3:
+                    print('player %d out' % self.number)
+                    self.out = 1
+            else:
+                self.warning = max(0, self.warning - 1)
+                
+                '''
             else:
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 person_new_box = gray[new_box[1]:new_box[1]+new_box[3],new_box[0]:new_box[0]+new_box[2]]
     
-                
-                downsample_old = cv2.resize(self.person_old_box, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
-                downsample_new = cv2.resize(person_new_box, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
-                
-                m = [downsample_old.shape[0], downsample_new.shape[0]].index(min(downsample_old.shape[0], downsample_new.shape[0]))
-                n = [downsample_old.shape[1], downsample_new.shape[1]].index(min(downsample_old.shape[1], downsample_new.shape[1]))
-                y = [downsample_old.shape[0], downsample_new.shape[0]][m]
-                x = [downsample_old.shape[1], downsample_new.shape[1]][n]
-                y = int(y/2)
-                x = int(x/2)
-                downsample_old = downsample_old[int(downsample_old.shape[0]/2)-y:int(downsample_old.shape[0]/2)+y,
-                                                int(downsample_old.shape[1]/2)-x:int(downsample_old.shape[1]/2)+x]
-                downsample_new = downsample_new[int(downsample_new.shape[0]/2)-y:int(downsample_new.shape[0]/2)+y,
-                                                int(downsample_new.shape[1]/2)-x:int(downsample_new.shape[1]/2)+x]
-                
-                #print("MSE: ", mse(downsample_new,downsample_old))
-                #print("RMSE: ", rmse(downsample_new, downsample_old))
-                #print("PSNR: ", psnr(downsample_new, downsample_old))
-                #print("SSIM: ", ssim(downsample_new, downsample_old))
-                #print("UQI: ", uqi(downsample_new, downsample_old))
-                #print("ERGAS: ", ergas(downsample_new, downsample_old))
-                #err = scc(downsample_new, downsample_old)
-                #print("RASE: ", rase(downsample_new, downsample_old))
-                #print("SAM: ", sam(downsample_new, downsample_old))
-                err = np.mean(ssim(downsample_new, downsample_old))
+                err = compare_ssim(self.person_old_box, person_new_box, downsample_factor)
                     
                 if err < error:
                     print('player %d : movement detected' % self.number)
-                else:
-                    print('player %d : no movement detected' % self.number)
+                    '''
  
-def red_light(net, classNames, img, thres, nms, start, players, draw=True, objects=[]):
+def red_light(net, classNames, img, thres, nms, start, players, draw=True, objects=[], end=0):
     # Detect objects
     classIds, confs, bbox = net.detect(img,confThreshold=thres,nmsThreshold=nms)
     if len(objects) == 0: 
@@ -93,7 +106,6 @@ def red_light(net, classNames, img, thres, nms, start, players, draw=True, objec
             if className == 'person':
                 
                 # some complicated determining who's who algorithm
-                # right now, just using who was closest to original place
                 
                 center = [box[1]+box[3]/2,box[0]+box[2]/2]
                 # Initialize people when start of red light
@@ -101,12 +113,29 @@ def red_light(net, classNames, img, thres, nms, start, players, draw=True, objec
                     players.append(Person(img, center, box, 400, 400, player_num))
                     player_num += 1
                     
-                # Find original player by finding closest center match
+                ##########################################################
+                # Find original player
                 changes = []
+                colors = []
                 for player in players:
                     changes.append(player.change_in_center(center))
+                    colors.append(player.person_color)               
+                
+                new_color = np.mean(cv2.cvtColor(img[box[1]:box[1]+box[3],box[0]:box[0]+box[2]], cv2.COLOR_RGB2HSV))
+                
+                if list(abs(colors-new_color)).index(min(abs(colors-new_color))) != changes.index(min(changes)):
+                    ssims = []
+                    for player in players:
+                        person_new_box = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)[box[1]:box[1]+box[3],box[0]:box[0]+box[2]]
+                        ssims.append(compare_ssim(player.person_old_box, person_new_box, 1/8))
+                        
+                    if ssims.index(max(ssims)) != changes.index(min(changes)):
+                        print(0)
+                  
+                # still just using closest to origin
                 player = players[changes.index(min(changes))]
                 player.check_movement(center, img, box, error=0.3, downsample_factor=1/4)
+                #########################################################
                     
                 # Display info
                 objectInfo.append([box,className])
@@ -116,6 +145,10 @@ def red_light(net, classNames, img, thres, nms, start, players, draw=True, objec
                     cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
                     cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
                     cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+    
+    if end == 1:
+        for player in players:
+            print('player %d out' % player.number)
     
     return img,objectInfo, players
 
@@ -138,17 +171,17 @@ def main():
     net.setInputSwapRB(True)
 
     # Upload video
-    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3086.MOV')
+    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3058.MOV')
     cap.set(3,640)
     cap.set(4,480)
     #cap.set(10,70)
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    #red_lights = [30, 300, 650, 980]
+    red_lights = [int(length*1/6),int(length*1/4),int(length*3/6),int(length*3/4),int(length*5/6)]
+    #green_lights = [120, 470, 850]
+    frame_num = 0
     
     # Initialize variables
-    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    red_lights = [30, 300, 650, 980]
-    #red_lights = [int(length*1/6),int(length*1/4),int(length*3/6),int(length*3/4),int(length*5/6)]
-    green_lights = [120, 470, 850]
-    frame_num = 0
     red = False
     start = False
     players = []
@@ -163,7 +196,7 @@ def main():
             start = True
             print('red')
             
-        if frame_num in green_lights: #-50 in red_lights:# in green_lights:
+        if frame_num-50 in red_lights:# in green_lights:
             red = False
             print('green')
             players = []
@@ -177,5 +210,10 @@ def main():
         cv2.imshow('img',img)
         cv2.waitKey(1)
         frame_num += 1
+        
+        if frame_num == length:
+            players = []
+            start = True
+            result, objectInfo, players = red_light(net, classNames, img,0.65,0.4, start, players, end=1)
 
 main()
