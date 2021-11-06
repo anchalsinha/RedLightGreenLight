@@ -36,13 +36,17 @@ Joel will be working on person detection and motion detection. Anchal will be wo
 
 ### 9.a. Papers
 YOLOv4 for fast single-pass person detection: https://arxiv.org/abs/2004.10934 
+
 YOLOv4-tiny for improved performance: https://arxiv.org/abs/2011.04244
+
 DeepSORT for object tracking invariant to occlusion: https://arxiv.org/abs/1703.07402
 
 ### 9.b. Datasets
 
 Yolov4-tiny weights/configuration used for person detection
+
 Coco names file which includes object names for detection
+
 MOT16 dataset for multi-object tracking used in DeepSORT
 
 ### 9.c. Software
@@ -51,12 +55,15 @@ Python, OpenCV for algorithm implementation
 ## 10. References
 
 Bochkovskiy, A., Wang, C., & Liao, H.M. (2020). YOLOv4: Optimal Speed and Accuracy of Object Detection. ArXiv, abs/2004.10934. https://arxiv.org/abs/2004.10934 
+
 https://github.com/AlexeyAB/darknet
+
 https://github.com/pjreddie/darknet
 
 Jiang, Z., Zhao, L., Li, S., & Jia, Y. (2020). Real-time object detection method based on improved YOLOv4-tiny. ArXiv, abs/2011.04244. https://arxiv.org/abs/2011.04244
 
 Wojke, N., Bewley, A., & Paulus, D. (2017). Simple online and realtime tracking with a deep association metric. 2017 IEEE International Conference on Image Processing (ICIP), 3645-3649. https://arxiv.org/abs/1703.07402
+
 https://github.com/nwojke/deep_sort
 
 Milan, A., Leal-Taixé, L., Reid, I., Roth, S. & Schindler, K. MOT16: A Benchmark for Multi-Object Tracking. arXiv:1603.00831 [cs], 2016., (arXiv: 1603.00831). https://arxiv.org/abs/1603.00831
