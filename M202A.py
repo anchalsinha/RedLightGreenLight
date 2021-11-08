@@ -78,7 +78,7 @@ class Person:
  
 def red_light(net, classNames, img, thres, nms, start, players, draw=True, objects=[]):
     # Detect objects
-    classIds, confs, bbox = net.detect(img,confThreshold=thres,nmsThreshold=nms)
+    classIds, confs, bbox = net.detect(img, confThreshold=thres, nmsThreshold=nms)
     if len(objects) == 0: 
         objects = classNames
     objectInfo =[]
