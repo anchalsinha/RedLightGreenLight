@@ -1,64 +1,78 @@
 import cv2
 import os
+import numpy as np
 
+from lib.deep_sort.deep_sort.tracker import Tracker
+from lib.deep_sort.deep_sort.nn_matching import NearestNeighborDistanceMetric
+from lib.deep_sort.deep_sort.detection import Detection
+from lib.deep_sort.tools.generate_detections import create_box_encoder
+from lib.deep_sort.application_util import preprocessing
 from config import YOLOv4_TINY_MODEL_DIR
 
 class PlayerTracker:
-    def __init__(self):
+    def __init__(self, max_cosine_distance=0.2, nn_budget=None):
         configPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.cfg')
         weightsPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.weights')
         classFile = os.path.join(YOLOv4_TINY_MODEL_DIR, 'coco.names.txt')
+        marsPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'mars-small128.pb')
         with open(classFile,"rt") as f:
             self.classNames = f.read().splitlines()
 
-        self.net = cv2.dnn_DetectionModel(weightsPath,configPath)
+        self.net = cv2.dnn_DetectionModel(weightsPath, configPath)
         self.net.setInputSize(320,320) #704,704
         self.net.setInputScale(1.0/ 255) #127.5 before
         #net.setInputMean((127.5, 127.5, 127.5)) #Determines overlapping
         self.net.setInputSwapRB(True)
 
-    def detectPlayers(self, img, thres, nms, start, players, draw=True, objects=[]):
+        metric = NearestNeighborDistanceMetric(
+            "cosine", max_cosine_distance, nn_budget)
+        self.tracker = Tracker(metric)
+        self.encoder = create_box_encoder(marsPath, batch_size=1)
+
+    def detectPlayers(self, frame, thres, nms):
+        players = []
         # Detect objects
-        classIds, confs, bbox = self.net.detect(img, confThreshold=thres, nmsThreshold=nms)
-        if len(objects) == 0: 
-            objects = self.classNames
+        classIds, confs, bbox = self.net.detect(frame, confThreshold=thres, nmsThreshold=nms)
+        objects = self.classNames
         objectInfo =[]
+        detections = []
+
+        boxes = []
+        confs = []
+
+        if len(classIds) == 0:
+            print('Nothing detected')
+            return
+
+        for classId, confidence, box in zip(classIds.flatten(),confs.flatten(),bbox):
+            className = self.classNames[classId]
+            # For each person detected
+            if className == 'person':
+                boxes.append(box)
+                confs.append(confidence)
         
-        # Track people
-        if len(classIds) != 0:
-            player_num = 1
-            for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
-                className = self.classNames[classId]
-                
-                # For each person detected
-                if className == 'person':
-                    
-                    # some complicated determining who's who algorithm
-                    # right now, just using who was closest to original place
-                    
-                    center = [box[1]+box[3]/2,box[0]+box[2]/2]
-                    # Initialize people when start of red light
-                    if start == True:
-                        players.append(Person(img, center, box, 400, 400, player_num))
-                        player_num += 1
-                        
-                    # Find original player by finding closest center match
-                    changes = []
-                    for player in players:
-                        changes.append(player.change_in_center(center))
-                    player = players[changes.index(min(changes))]
-                    player.check_movement(center, img, box, error=0.3, downsample_factor=1/4)
-                        
-                    # Display info
-                    objectInfo.append([box,className])
-                    if (draw):
-                        cv2.rectangle(img,box,color=(0,255,0),thickness=2)
-                        cv2.putText(img,className.upper()+str(player.player_num()),(box[0]+10,box[1]+30),
-                        cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
-                        cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
-                        cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+        features = self.encoder(frame, boxes)
+        detections = [Detection(bbox, score, feature) for bbox, score, feature in zip(boxes, confs, features)]
+
+        # run non-maxima supression
+        boxs = np.array([d.tlwh for d in detections])
+        scores = np.array([d.confidence for d in detections])
+        indices = preprocessing.non_max_suppression(boxs, 1.0, scores)
+        detections = [detections[i] for i in indices]       
+
+        self.tracker.predict()
+        self.tracker.update(detections)
+
+        # update tracks
+        for track in self.tracker.tracks:
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue 
+            bbox = track.to_tlbr()
+            
+            # draw bbox 
+            cv2.rectangle(frame, bbox, (0, 255, 0), 10)
         
-        return img, objectInfo, players
+        return frame, detections
     
 
 class Person:

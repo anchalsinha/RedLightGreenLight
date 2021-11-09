@@ -50,12 +50,11 @@ class Game:
         ret, frame = self.videoStream.read()
         if not ret:
             return
-        img, objectInfo, players = self.playerTracker.detectPlayers(frame, frame, 0.65, 0.4, True, None)
-        cv2.imshow('Frame', img)
+        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4)
+        cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
     def manage_state(self):
-        print(f'Current State: {self.state}')
         if self.state == State.CONNECTING:
             self.connect()
         elif self.state == State.GAME_START:
