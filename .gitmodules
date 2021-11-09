@@ -1,3 +1,0 @@
-[submodule "src/lib/deep_sort"]
-	path = src/lib/deep_sort
-	url = https://github.com/nwojke/deep_sort.git
