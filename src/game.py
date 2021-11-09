@@ -30,6 +30,8 @@ class Game:
             loop.run_until_complete(task)
         except asyncio.CancelledError:
             pass
+        except KeyboardInterrupt:
+            task.cancel()
 
     async def timer(self, fps):
         while True:

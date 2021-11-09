@@ -2,15 +2,15 @@ import cv2
 import os
 import numpy as np
 
-from lib.deep_sort.deep_sort.tracker import Tracker
-from lib.deep_sort.deep_sort.nn_matching import NearestNeighborDistanceMetric
-from lib.deep_sort.deep_sort.detection import Detection
-from lib.deep_sort.tools.generate_detections import create_box_encoder
-from lib.deep_sort.application_util import preprocessing
+from deep_sort.tracker import Tracker
+from deep_sort.nn_matching import NearestNeighborDistanceMetric
+from deep_sort.detection import Detection
+from deep_sort.generate_detections import create_box_encoder
+from deep_sort.preprocessing import non_max_suppression
 from config import YOLOv4_TINY_MODEL_DIR
 
 class PlayerTracker:
-    def __init__(self, max_cosine_distance=0.2, nn_budget=None):
+    def __init__(self, max_cosine_distance=0.5, max_age=100, nn_budget=None):
         configPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.cfg')
         weightsPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.weights')
         classFile = os.path.join(YOLOv4_TINY_MODEL_DIR, 'coco.names.txt')
@@ -24,40 +24,38 @@ class PlayerTracker:
         #net.setInputMean((127.5, 127.5, 127.5)) #Determines overlapping
         self.net.setInputSwapRB(True)
 
-        metric = NearestNeighborDistanceMetric(
-            "cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric)
+        metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
+        self.tracker = Tracker(metric, max_age=max_age)
         self.encoder = create_box_encoder(marsPath, batch_size=1)
 
-    def detectPlayers(self, frame, thres, nms):
+    def detectPlayers(self, frame, conf_threshold, nms_threshold):
         players = []
         # Detect objects
-        classIds, confs, bbox = self.net.detect(frame, confThreshold=thres, nmsThreshold=nms)
-        objects = self.classNames
-        objectInfo =[]
+        class_ids, confidences, bboxes = self.net.detect(frame, confThreshold=conf_threshold, nmsThreshold=nms_threshold)
         detections = []
 
         boxes = []
         confs = []
 
-        if len(classIds) == 0:
-            print('Nothing detected')
-            return
+        if len(class_ids) == 0:
+            return frame, None
 
-        for classId, confidence, box in zip(classIds.flatten(),confs.flatten(),bbox):
-            className = self.classNames[classId]
+        for class_id, confidence, box in zip(class_ids.flatten(), confidences.flatten(), bboxes):
+            className = self.classNames[class_id]
             # For each person detected
             if className == 'person':
+                boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1]])
                 boxes.append(box)
                 confs.append(confidence)
         
         features = self.encoder(frame, boxes)
-        detections = [Detection(bbox, score, feature) for bbox, score, feature in zip(boxes, confs, features)]
+        detections = [Detection(bbox, score, 'person', feature) for bbox, score, feature in zip(boxes, confs, features)]
 
         # run non-maxima supression
         boxs = np.array([d.tlwh for d in detections])
         scores = np.array([d.confidence for d in detections])
-        indices = preprocessing.non_max_suppression(boxs, 1.0, scores)
+        classes = np.array([d.class_name for d in detections])
+        indices = non_max_suppression(boxs, classes, 1.0, scores)
         detections = [detections[i] for i in indices]       
 
         self.tracker.predict()
@@ -65,12 +63,13 @@ class PlayerTracker:
 
         # update tracks
         for track in self.tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
+            if not track.is_confirmed():# or track.time_since_update > 1:
                 continue 
             bbox = track.to_tlbr()
             
             # draw bbox 
             cv2.rectangle(frame, bbox, (0, 255, 0), 10)
+            cv2.putText(frame, f'ID: {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
         
         return frame, detections
     
