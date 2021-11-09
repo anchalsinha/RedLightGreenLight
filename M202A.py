@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from sewar.full_ref import mse, rmse, psnr, uqi, ssim, ergas, scc, rase, sam, msssim, vifp
 
-# Need to implement person tracking - who's who, who lost, who won, game system
+# Need to implement person tracking - who's who, game system, laser, real time processing
 
 class Person:
     def __init__(self, img, origin, box, center_thres, box_thres ,number):
@@ -16,6 +16,11 @@ class Person:
         self.number = number
         self.area = 1000000
         self.person_old_box = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)[box[1]:box[1]+box[3],box[0]:box[0]+box[2]]
+        self.person_color = np.mean(cv2.cvtColor(img[box[1]:box[1]+box[3],box[0]:box[0]+box[2]], cv2.COLOR_RGB2HSV))
+        self.warning = 0
+        self.out = 0
+        self.tracker = cv2.TrackerMIL_create()
+        self.tracker.init(img, box)
     
     def player_num(self):
         # Return player number
@@ -38,52 +43,29 @@ class Person:
         change_in_box = abs(old_x_len-new_x_len)+abs(old_y_len-new_y_len)
         
         # Determine movement
-        if self.number == 1:
+        if self.out == 0:
             if change_in_center > self.center_thres*(old_x_len*old_y_len)/self.area or change_in_box > (self.box_thres*(old_x_len*old_y_len)/self.area):
                 print('player %d : movement detected' % self.number)
+                self.warning += 1
+                if self.warning == 3:
+                    print('player %d out' % self.number)
+                    self.out = 1
             else:
-                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                person_new_box = gray[new_box[1]:new_box[1]+new_box[3],new_box[0]:new_box[0]+new_box[2]]
-    
-                
-                downsample_old = cv2.resize(self.person_old_box, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
-                downsample_new = cv2.resize(person_new_box, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_AREA)
-                
-                m = [downsample_old.shape[0], downsample_new.shape[0]].index(min(downsample_old.shape[0], downsample_new.shape[0]))
-                n = [downsample_old.shape[1], downsample_new.shape[1]].index(min(downsample_old.shape[1], downsample_new.shape[1]))
-                y = [downsample_old.shape[0], downsample_new.shape[0]][m]
-                x = [downsample_old.shape[1], downsample_new.shape[1]][n]
-                y = int(y/2)
-                x = int(x/2)
-                downsample_old = downsample_old[int(downsample_old.shape[0]/2)-y:int(downsample_old.shape[0]/2)+y,
-                                                int(downsample_old.shape[1]/2)-x:int(downsample_old.shape[1]/2)+x]
-                downsample_new = downsample_new[int(downsample_new.shape[0]/2)-y:int(downsample_new.shape[0]/2)+y,
-                                                int(downsample_new.shape[1]/2)-x:int(downsample_new.shape[1]/2)+x]
-                
-                #print("MSE: ", mse(downsample_new,downsample_old))
-                #print("RMSE: ", rmse(downsample_new, downsample_old))
-                #print("PSNR: ", psnr(downsample_new, downsample_old))
-                #print("SSIM: ", ssim(downsample_new, downsample_old))
-                #print("UQI: ", uqi(downsample_new, downsample_old))
-                #print("ERGAS: ", ergas(downsample_new, downsample_old))
-                #err = scc(downsample_new, downsample_old)
-                #print("RASE: ", rase(downsample_new, downsample_old))
-                #print("SAM: ", sam(downsample_new, downsample_old))
-                err = np.mean(ssim(downsample_new, downsample_old))
-                    
-                if err < error:
-                    print('player %d : movement detected' % self.number)
-                else:
-                    print('player %d : no movement detected' % self.number)
+                self.warning = max(0, self.warning - 1)
  
-def red_light(net, classNames, img, thres, nms, start, players, draw=True, objects=[]):
+def red_light(net, classNames, img, thres, nms, start, players, rand, draw=True, objects=[], end=0):
     # Detect objects
     classIds, confs, bbox = net.detect(img,confThreshold=thres,nmsThreshold=nms)
     if len(objects) == 0: 
         objects = classNames
     objectInfo =[]
     
-    # Track people
+    # Detect movement
+    closest = []
+    centers = []
+    boxes = []
+    confidences = []
+    
     if len(classIds) != 0:
         player_num = 1
         for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
@@ -92,30 +74,91 @@ def red_light(net, classNames, img, thres, nms, start, players, draw=True, objec
             # For each person detected
             if className == 'person':
                 
-                # some complicated determining who's who algorithm
-                # right now, just using who was closest to original place
-                
                 center = [box[1]+box[3]/2,box[0]+box[2]/2]
                 # Initialize people when start of red light
                 if start == True:
                     players.append(Person(img, center, box, 400, 400, player_num))
                     player_num += 1
                     
-                # Find original player by finding closest center match
-                changes = []
-                for player in players:
-                    changes.append(player.change_in_center(center))
-                player = players[changes.index(min(changes))]
-                player.check_movement(center, img, box, error=0.3, downsample_factor=1/4)
+                else:
+                    changes = []
+                    for player in players:
+                        changes.append(player.change_in_center(center))
+                    loc = [0 for i in range(len(players))]
+                    loc[changes.index(min(changes))] = 1
+                    closest.append(loc)
+                    centers.append(center)
+                    boxes.append(box)
+                    confidences.append(confidence)
                     
+    if start == False:
+        ###################################################################
+        if len(closest) != 0 and (len(closest) != len(players) or abs(np.linalg.det(closest)) != 1):
+            uncertains = []
+            for i in range(len(closest[0])):
+                if np.sum(np.array(closest)[:,i]) != 1:
+                    uncertains.append(i)
+                    
+            new_centers = []
+            unknowns = []
+            for uncertain in uncertains:
+                if np.sum(np.array(closest)[:,uncertain]) != 0:
+                    inds = [i for i, e in enumerate(list(np.array(closest)[:,uncertain])) if e == 1]
+                    for ind in inds:
+                        unknowns.append(ind)
+                
+                ok, new_box = players[uncertain].tracker.update(img)
+                players[uncertain].box = new_box
+                new_centers.append([new_box[1]+new_box[3]/2,new_box[0]+new_box[2]/2])
+                
+            results = []
+            for unknown in unknowns:
+                changes = []
+                for new_center in new_centers:
+                    changes.append(np.sqrt((new_center[1]-centers[unknown][1])**2+(new_center[0]-centers[unknown][0])**2))
+                results.append(uncertains[changes.index(min(changes))])
+                
+                '''
+            for result in results:
+                r = all(element == result for element in results)
+                if r == True:
+                    inds = [i for i, e in enumerate(results) if e == result]
+                
+            
+            '''
+                players[uncertains[changes.index(min(changes))]].check_movement(centers[unknown], img, boxes[unknown], error=0.3, downsample_factor=1/4)
+            
                 # Display info
-                objectInfo.append([box,className])
+                objectInfo.append([boxes[unknown],'PERSON'])
                 if (draw):
-                    cv2.rectangle(img,box,color=(0,255,0),thickness=2)
-                    cv2.putText(img,className.upper()+str(player.player_num()),(box[0]+10,box[1]+30),
+                    cv2.rectangle(img,boxes[unknown],color=(0,255,0),thickness=2)
+                    cv2.putText(img,"PERSON"+str(players[uncertains[changes.index(min(changes))]].player_num()),(boxes[unknown][0]+10,boxes[unknown][1]+30),
                     cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
-                    cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
+                    cv2.putText(img,str(round(confidences[unknown]*100,2)),(boxes[unknown][0]+200,boxes[unknown][1]+30),
                     cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+                    
+                    
+        #################################################################
+        else:
+            for i in range(len(closest)):
+                ind = closest[i].index(1)
+                players[ind].check_movement(centers[i], img, boxes[i], error=0.3, downsample_factor=1/4)
+                #randomize some updates
+                if np.random.random() < rand:
+                    players[ind].tracker.update(img)
+                
+                # Display info
+                objectInfo.append([boxes[i],'PERSON'])
+                if (draw):
+                    cv2.rectangle(img,boxes[i],color=(0,255,0),thickness=2)
+                    cv2.putText(img,"PERSON"+str(players[ind].player_num()),(boxes[i][0]+10,boxes[i][1]+30),
+                    cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+                    cv2.putText(img,str(round(confidences[i]*100,2)),(boxes[i][0]+200,boxes[i][1]+30),
+                    cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+        
+        if end == 1:
+            for player in players:
+                print('player %d out' % player.number)
     
     return img,objectInfo, players
 
@@ -138,17 +181,17 @@ def main():
     net.setInputSwapRB(True)
 
     # Upload video
-    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3086.MOV')
+    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3111.MOV')
     cap.set(3,640)
     cap.set(4,480)
     #cap.set(10,70)
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    #red_lights = [30, 300, 650, 980]
+    red_lights = [int(length*1/6)]
+    #green_lights = [120, 470, 850]
+    frame_num = 0
     
     # Initialize variables
-    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    red_lights = [30, 300, 650, 980]
-    #red_lights = [int(length*1/6),int(length*1/4),int(length*3/6),int(length*3/4),int(length*5/6)]
-    green_lights = [120, 470, 850]
-    frame_num = 0
     red = False
     start = False
     players = []
@@ -163,13 +206,13 @@ def main():
             start = True
             print('red')
             
-        if frame_num in green_lights: #-50 in red_lights:# in green_lights:
+        if frame_num-5000 in red_lights:# in green_lights:
             red = False
             print('green')
             players = []
         
         if red:
-            result, objectInfo, players = red_light(net, classNames, img,0.65,0.4, start, players) # 0.45, 0.2 before, 0.1, 0.4
+            result, objectInfo, players = red_light(net, classNames, img,0.65,0.4, start, players, rand = 0.0) # 0.45, 0.2 before, 0.1, 0.4
             start = False
             
         #print(objectInfo)
@@ -177,5 +220,10 @@ def main():
         cv2.imshow('img',img)
         cv2.waitKey(1)
         frame_num += 1
+        
+        if frame_num == length:
+            players = []
+            start = True
+            result, objectInfo, players = red_light(net, classNames, img,0.65,0.4, start, players, end=1, rand=0)
 
 main()
