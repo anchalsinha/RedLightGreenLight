@@ -65,9 +65,11 @@ class PlayerTracker:
             if not track.is_confirmed():# or track.time_since_update > 1:
                 continue 
             bbox = track.to_tlbr()
+            pt1 = [int(bbox[0]), int(bbox[1])]
+            pt2 = [int(bbox[2]), int(bbox[3])]
             
             # draw bbox 
-            cv2.rectangle(frame, bbox, (0, 255, 0), 10)
+            cv2.rectangle(frame, pt1, pt2, (0, 255, 0), 10)
             cv2.putText(frame, f'ID: {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
         
         return frame, detections
