@@ -44,7 +44,6 @@ class PlayerTracker:
             className = self.classNames[class_id]
             # For each person detected
             if className == 'person':
-                boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1]])
                 boxes.append(box)
                 confs.append(confidence)
         
