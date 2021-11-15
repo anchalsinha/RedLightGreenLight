@@ -69,7 +69,7 @@ class PlayerTracker:
             if cv2.__version__ == '4.5.1': # idek
                 bbox = track.to_tlwh()
                 cv2.rectangle(frame, bbox, (0, 255, 0), 10)
-            elif cv2.__version__ == '4.5.4-dev': 
+            elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': 
                 bbox = track.to_tlbr()
                 cv2.rectangle(frame, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 10)
             cv2.putText(frame, f'ID: {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)

@@ -41,7 +41,8 @@ class Game:
 
     def connect(self):
         # get video streams
-        self.videoStream = cv2.VideoCapture(0)
+        # self.videoStream = cv2.VideoCapture(0)
+        self.videoStream = cv2.VideoCapture('udpsrc port=5200 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)JPEG, payload=(int)26" ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
         self.state = State.GAME_START
 
     def start_game(self):
