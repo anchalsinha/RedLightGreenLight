@@ -1,16 +1,18 @@
 import cv2
 import os
 import numpy as np
+from collections import namedtuple
 
-from deep_sort.tracker import Tracker
-from deep_sort.nn_matching import NearestNeighborDistanceMetric
-from deep_sort.detection import Detection
-from deep_sort.generate_detections import create_box_encoder
-from deep_sort.preprocessing import non_max_suppression
+# from deep_sort.tracker import Tracker
+# from deep_sort.nn_matching import NearestNeighborDistanceMetric
+# from deep_sort.detection import Detection
+# from deep_sort.generate_detections import create_box_encoder
+# from deep_sort.preprocessing import non_max_suppression
+from yolox.tracker.byte_tracker import BYTETracker
 from config import YOLOv4_TINY_MODEL_DIR
 
 class PlayerTracker:
-    def __init__(self, max_cosine_distance=0.5, max_age=100, nn_budget=None):
+    def __init__(self, track_thresh=0.65, match_thresh=0.9, track_buffer=30):
         configPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.cfg')
         weightsPath = os.path.join(YOLOv4_TINY_MODEL_DIR, 'yolov4-tiny.weights')
         classFile = os.path.join(YOLOv4_TINY_MODEL_DIR, 'coco.names.txt')
@@ -24,9 +26,9 @@ class PlayerTracker:
         #net.setInputMean((127.5, 127.5, 127.5)) #Determines overlapping
         self.net.setInputSwapRB(True)
 
-        metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_age=max_age)
-        self.encoder = create_box_encoder(marsPath, batch_size=1)
+        argsObject = namedtuple('args', 'track_thresh match_thresh track_buffer mot20')
+        args = argsObject(track_thresh, match_thresh, track_buffer, False)
+        self.tracker = BYTETracker(args)
 
     def detectPlayers(self, frame, conf_threshold, nms_threshold):
         players = []
@@ -47,30 +49,28 @@ class PlayerTracker:
                 boxes.append(box)
                 confs.append(confidence)
         
-        features = self.encoder(frame, boxes)
-        detections = [Detection(bbox, score, 'person', feature) for bbox, score, feature in zip(boxes, confs, features)]
+        # features = self.encoder(frame, boxes)
+        # detections = [Detection(bbox, score, 'person', feature) for bbox, score, feature in zip(boxes, confs, features)]
+        detections = np.array([[bbox[0], bbox[1], bbox[2], bbox[3], score] for bbox, score in zip(boxes, confs)])
 
         # run non-maxima supression
-        boxs = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
-        classes = np.array([d.class_name for d in detections])
-        indices = non_max_suppression(boxs, classes, 1.0, scores)
-        detections = [detections[i] for i in indices]       
+        # boxs = np.array([d.tlwh for d in detections])
+        # scores = np.array([d.confidence for d in detections])
+        # classes = np.array([d.class_name for d in detections])
+        # indices = non_max_suppression(boxs, classes, 1.0, scores)
+        # detections = [detections[i] for i in indices]       
 
-        self.tracker.predict()
-        self.tracker.update(detections)
+        # self.tracker.predict()
+        tracks = self.tracker.update(detections, [640, 480], [640, 480])
 
         # update tracks
-        for track in self.tracker.tracks:
-            if not track.is_confirmed():# or track.time_since_update > 1:
-                continue 
-            
+        for track in tracks:
             # draw bbox 
             if cv2.__version__ == '4.5.1': # idek
-                bbox = track.to_tlwh()
+                bbox = track.tlwh
                 cv2.rectangle(frame, bbox, (0, 255, 0), 10)
             elif cv2.__version__ == '4.5.4-dev': 
-                bbox = track.to_tlbr()
+                bbox = track.tlbr
                 cv2.rectangle(frame, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 10)
             cv2.putText(frame, f'ID: {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
         
