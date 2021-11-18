@@ -2,6 +2,7 @@
 
 import cv2
 import numpy as np
+import winsound
 
 from deep_sort.tracker import Tracker
 from deep_sort.nn_matching import NearestNeighborDistanceMetric
@@ -9,8 +10,7 @@ from deep_sort.detection import Detection
 from deep_sort.generate_detections import create_box_encoder
 from deep_sort.preprocessing import non_max_suppression
 
-# Need to implement game system, laser, real time processing, improve overlaps
-# Need initial time to calibrate
+# Need to implement real time processing -> game system -> laser
 
 class Person:
     def __init__(self, img, origin, box, center_thres, box_thres ,number):
@@ -33,7 +33,7 @@ class Person:
         change_in_center = np.sqrt((center[1]-self.origin[1])**2+(center[0]-self.origin[0])**2)
         return change_in_center
     
-    def check_movement(self, center, img, new_box, downsample_factor = 1/3):
+    def check_movement(self, center, img, new_box, overlaps):
         # Find change in center
         change_in_center = self.change_in_center(center)
         
@@ -45,23 +45,37 @@ class Person:
         change_in_box = abs(old_x_len-new_x_len)+abs(old_y_len-new_y_len)
         
         # Determine movement
-        if self.out == 0:
+        '''
+        criterion = False
+
+        if overlaps == 0:
             if change_in_center > self.center_thres*(old_x_len*old_y_len)/self.area or change_in_box > (self.box_thres*(old_x_len*old_y_len)/self.area):
+                criterion = True
+        
+        else:
+            if change_in_center > self.center_thres*1.5*(old_x_len*old_y_len)/self.area:
+                criterion = True
+        '''
+        factor = 1
+        
+        if overlaps == 1:
+            factor = 1.5
+        
+        if self.out == 0:
+            if change_in_center > self.center_thres*factor*(old_x_len*old_y_len)/self.area or change_in_box > (self.box_thres*factor*(old_x_len*old_y_len)/self.area):
                 print('player %d : movement detected' % self.number)
                 self.warning += 1
                 if self.warning == 3:
-                    print('player %d out' % self.number)
                     self.out = 1
             else:
                 self.warning = max(0, self.warning - 1)
  
-def check_state(red, net, tracker, encoder, classNames, img, thres, nms, start, players, rand, draw=True, end=0):
+def check_state(red, net, tracker, encoder, classNames, img, thres, nms, start, players, outs, end=0):
     # Detect objects
     classIds, confs, bbox = net.detect(img,confThreshold=thres,nmsThreshold=nms)
     boxes = []
     
     if len(classIds) != 0:
-        player_num = 1
         for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
             className = classNames[classId]
             
@@ -84,10 +98,12 @@ def check_state(red, net, tracker, encoder, classNames, img, thres, nms, start, 
     tracker.update(detections)
 
     # update tracks
-    player_num = 0
     for track in tracker.tracks:
         if not track.is_confirmed():# or track.time_since_update > 1:
             continue 
+        
+        if end == 1:
+            players[track.track_id-1].out = 1
         
         box = track.to_tlbr()
         box = [int(b) for b in box]
@@ -100,29 +116,35 @@ def check_state(red, net, tracker, encoder, classNames, img, thres, nms, start, 
         # Run red light
         elif red:
             # Takes care of moving overlaps
-            players[player_num].update_current(box)
+            players[track.track_id-1].update_current(box)
             overlaps = 0
             for player in players:
                 if player.number != track.track_id:
                     tbox = player.current_box
                     tcenter = [tbox[1]+tbox[3]/2,tbox[0]+tbox[2]/2]
-                    if abs(center[1]-tcenter[1]) < 200:
+                    if abs(center[1]-tcenter[1]) < 200*(player.box[2]*player.box[3])/player.area:
                         overlaps = 1
  
-            if overlaps != 1:
-                players[player_num].check_movement(center, img, box, downsample_factor=1/4)
-            player_num +=1
+            players[track.track_id-1].check_movement(center, img, box, overlaps)
             
-        # draw bbox 
-        if cv2.__version__ == '4.5.1': # idek
-            bbox = track.to_tlwh()
-            cv2.rectangle(img, bbox, (0, 255, 0), 10)
-        elif cv2.__version__ == '4.5.4-dev': 
-            bbox = track.to_tlbr()
-            cv2.rectangle(img, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 2)
-        cv2.putText(img, f'Person {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
-    
-    return img, players
+        if start == False and players[track.track_id-1].out == 0:
+            # draw bbox 
+            if cv2.__version__ == '4.5.1': # idek
+                bbox = track.to_tlwh()
+                cv2.rectangle(img, bbox, (0, 255, 0), 10)
+            elif cv2.__version__ == '4.5.4-dev': 
+                bbox = track.to_tlbr()
+                cv2.rectangle(img, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 2)
+            cv2.putText(img, f'Player {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
+        
+    for player in players:
+        if player.number not in outs and player.out == 1:
+            print('player %d out' % player.number)
+            outs.append(player.number)
+            
+            # point laser
+        
+    return img, players, outs
 
 def main():
     #Variables: box thresh, center thresh, net thresh and nms, input size, downsample factor, box total area
@@ -148,7 +170,7 @@ def main():
     encoder = create_box_encoder('/Users/Joel Oh/Downloads/mars-small128.pb', batch_size=1)
 
     # Upload video
-    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3086.MOV')
+    cap = cv2.VideoCapture('/Users/Joel Oh/Downloads/IMG_3111.MOV')
     cap.set(3,640)
     cap.set(4,480)
     #cap.set(10,70)
@@ -160,37 +182,48 @@ def main():
     
     # Initialize variables
     red = False
-    start = False
+    start = True
     players = []
+    outs = []
     
     while True:
         success, img = cap.read()
         if not success:
             break
         
-        if frame_num in red_lights:
+        if frame_num in [50]:#red_lights:
             red = True
-            start = True
-            print('red')
             
-        if frame_num in green_lights:
+        if frame_num in [500000]:#green_lights:
             red = False
-            print('green')
-            players = []
         
-        result, players = check_state(red, net, tracker, encoder, classNames, img,0.65,0.4, start, players, rand = 0.0) # 0.45, 0.2 before, 0.1, 0.4
-        start = False
+        if red == True:
+            cv2.rectangle(img, [0,0], [img.shape[1],img.shape[0]], (0, 0, 255), 25)
+        else:
+            cv2.rectangle(img, [0,0], [img.shape[1],img.shape[0]], (0, 255, 0), 25)
+        
+        result, players, outs = check_state(red, net, tracker, encoder, classNames, img,0.65,0.4, start, players, outs) # 0.45, 0.2 before, 0.1, 0.4
+        if len(players) != 0:
+            start = False
             
-        #print(objectInfo)
         img = cv2.resize(img, (720, 1080))
         cv2.imshow('img',img)
         cv2.waitKey(1)
         frame_num += 1
         
+        # End
         if frame_num == length:
-            players = []
-            start = True
-            red = True
-            result, players = check_state(red, net, tracker, encoder, classNames, img,0.65,0.4, start, players, end=1, rand=0)
+            result, players, outs = check_state(red, net, tracker, encoder, classNames, img,0.65,0.4, start, players, outs, end=1)
+        
+            losers = ""
+            winners = ""
+            for player in players:
+                if player.out == 0:
+                    winners += " Player %d " % (player.number)
+                else:
+                    losers += " Player %d " % (player.number)
+                    
+            print("Winners:"+winners)
+            print("Losers:"+losers)
 
 main()
