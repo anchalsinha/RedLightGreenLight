@@ -1,8 +1,9 @@
-theme: jekyll-theme-cayman
+theme: jekyll-theme-minimal
 show_downloads: true
 
 # google_analytics:[Your Google Analytics tracking ID]
 
 # Name of website
-title: Red Light, Green Light
+title: Red Light Green Light
+logo: /media/logo.jpeg
 description: Project for UCLA ECEM202A/CSM213A (Fall 2021)
