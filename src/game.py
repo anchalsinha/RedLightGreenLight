@@ -1,5 +1,6 @@
 import asyncio
 import cv2
+import numpy as np
 from enum import Enum
 
 from config import *
@@ -21,6 +22,10 @@ class Game:
         # initialize any vars
         self.playerTracker = PlayerTracker()
         self.state = State.CONNECTING
+
+        self.state_duration = 0
+        self.state_timer = 0
+        self.startRed = False
     
     def run(self):
         loop = asyncio.get_event_loop()
@@ -37,6 +42,7 @@ class Game:
         while True:
             # control periodic tasks
             self.manage_state()
+            self.state_timer += 1/fps
             await asyncio.sleep(1/fps)
 
     def connect(self):
@@ -48,24 +54,54 @@ class Game:
     def start_game(self):
         # every player should be in a line, so start tracking and identification
         self.state = State.GREEN_LIGHT
+        self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
+        print("Starting game")
+        print("Current State: GREEN LIGHT")
+
+    def reset_state_timer(self, duration_range):
+        self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
+        self.state_timer = 0
 
     def green_light(self):
         ret, frame = self.videoStream.read()
         if not ret:
             return
-        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4)
+        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4, False, False)
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
+
     def red_light(self):
+        '''
+        TODO: 
+         - Randomly select duration and make it minimum duration of red light state
+         - Check movement continuously
+         - If movement detected, fire the laser (probably queue up the shooting)
+         - Add fixed delay after the shooting
+        '''
+
+        # Reset timer to fixed duration after laser is fired
+        # self.reset_state_timer(RED_LIGHT_POST_DETECTION_DURATION) 
         ret, frame = self.videoStream.read()
         if not ret:
             return
-        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4)
+        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.startRed, True)
+        self.startRed = False
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
     def manage_state(self):
+        if self.state_timer > self.state_duration:
+            if self.state == State.GREEN_LIGHT:
+                self.state = State.RED_LIGHT
+                self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
+                self.startRed = True
+                print("Current State: RED LIGHT")
+            elif self.state == State.RED_LIGHT:
+                self.state = State.GREEN_LIGHT
+                self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
+                print("Current State: GREEN LIGHT")
+
         if self.state == State.CONNECTING:
             self.connect()
         elif self.state == State.GAME_START:
@@ -73,4 +109,5 @@ class Game:
         elif self.state == State.GREEN_LIGHT:
             self.green_light()
         elif self.state == State.RED_LIGHT:
-            pass
+            self.red_light()
+            # pass
