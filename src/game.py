@@ -41,8 +41,8 @@ class Game:
 
     def connect(self):
         # get video streams
-        # self.videoStream = cv2.VideoCapture(0)
-        self.videoStream = cv2.VideoCapture('udpsrc port=5200 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)JPEG, payload=(int)26" ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
+        self.videoStream = cv2.VideoCapture(0)
+        # self.videoStream = cv2.VideoCapture('udpsrc port=5200 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)JPEG, payload=(int)26" ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
         self.state = State.GAME_START
 
     def start_game(self):
@@ -50,6 +50,14 @@ class Game:
         self.state = State.GREEN_LIGHT
 
     def green_light(self):
+        ret, frame = self.videoStream.read()
+        if not ret:
+            return
+        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4)
+        cv2.imshow('Frame', frame)
+        cv2.waitKey(1)
+
+    def red_light(self):
         ret, frame = self.videoStream.read()
         if not ret:
             return
