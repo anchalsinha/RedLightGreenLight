@@ -1,7 +1,10 @@
+import nest_asyncio as nest_asyncio
+nest_asyncio.apply()
 import asyncio
 import cv2
 import numpy as np
 from enum import Enum
+import time
 
 from config import *
 from utilities import *
@@ -22,10 +25,11 @@ class Game:
         # initialize any vars
         self.playerTracker = PlayerTracker()
         self.state = State.CONNECTING
-
+        self.players = []
+        self.outs = []
         self.state_duration = 0
         self.state_timer = 0
-        self.startRed = False
+        self.start = True
     
     def run(self):
         loop = asyncio.get_event_loop()
@@ -54,6 +58,34 @@ class Game:
     def start_game(self):
         # every player should be in a line, so start tracking and identification
         self.state = State.GREEN_LIGHT
+        
+        # 10 seconds from start to be ready
+        current = time.time()
+        while 1:
+            ret, frame = self.videoStream.read()
+            
+            if (current+10-time.time()) >= 0:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                text = str(round(current+10-time.time(),2))
+                textsize = cv2.getTextSize(text, font, 1, 2)[0]
+                textX = int((frame.shape[1] - textsize[0]) / 2)
+                textY = int((frame.shape[0] + textsize[1]) / 2)
+                cv2.putText(frame, text, (textX, textY), font, 1, (255, 255, 255), 2)
+                
+            cv2.imshow('Frame', frame)
+            cv2.waitKey(1)
+
+            if time.time() > current+10:
+                break
+
+        while self.start == True:
+            ret, frame = self.videoStream.read()
+            frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, False, self.players, self.outs)
+            if len(self.players) != 0:
+                self.start = False
+                
+            cv2.imshow('Frame', frame)
+            cv2.waitKey(1)
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
         print("Starting game")
         print("Current State: GREEN LIGHT")
@@ -66,7 +98,8 @@ class Game:
         ret, frame = self.videoStream.read()
         if not ret:
             return
-        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4, False, False)
+        frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, False, self.players, self.outs)
+        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
@@ -85,8 +118,8 @@ class Game:
         ret, frame = self.videoStream.read()
         if not ret:
             return
-        frame, detections = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.startRed, True)
-        self.startRed = False
+        frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, True, self.players, self.outs)
+        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
@@ -110,4 +143,17 @@ class Game:
             self.green_light()
         elif self.state == State.RED_LIGHT:
             self.red_light()
+        elif self.state == State.GAME_END:
+            frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, self.players, self.outs, end=1)
+        
+            losers = ""
+            winners = ""
+            for player in self.players:
+                if player.out == 0:
+                    winners += " Player %d " % (player.number)
+                else:
+                    losers += " Player %d " % (player.number)
+                    
+            print("Winners:"+winners)
+            print("Losers:"+losers)
             # pass
