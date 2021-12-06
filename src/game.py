@@ -5,6 +5,7 @@ from enum import Enum
 
 from config import *
 from utilities import *
+from sound import *
 from person import PlayerTracker
 
 class State(Enum):
@@ -26,6 +27,8 @@ class Game:
         self.state_duration = 0
         self.state_timer = 0
         self.startRed = False
+        self.sound_speed = 1
+        
     
     def run(self):
         loop = asyncio.get_event_loop()
@@ -57,6 +60,7 @@ class Game:
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
         print("Starting game")
         print("Current State: GREEN LIGHT")
+        play_sound(self.sound_speed)
 
     def reset_state_timer(self, duration_range):
         self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
@@ -101,9 +105,12 @@ class Game:
                 self.state = State.GREEN_LIGHT
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 print("Current State: GREEN LIGHT")
+                self.sound_speed = self.sound_speed * 1.1
+                play_sound(self.sound_speed)
 
         if self.state == State.CONNECTING:
             self.connect()
+        
         elif self.state == State.GAME_START:
             self.start_game()
         elif self.state == State.GREEN_LIGHT:
