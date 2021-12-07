@@ -19,6 +19,7 @@ class State(Enum):
     GAME_END = 6
 
 sound = AudioSegment.from_file(file)
+sound_length = 4
 
 class Game:
     def __init__(self):
@@ -63,7 +64,9 @@ class Game:
         print("Starting game")
         print("Current State: GREEN LIGHT")
         # play_sound(self.sound_speed)
-        t = threading.Thread(target=play, args=(sound,))
+        self.sound_speed = sound_length/self.state_duration
+        t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+        # t = threading.Thread(target=play, args=(sound,))
         t.start()
 
     def reset_state_timer(self, duration_range):
@@ -104,15 +107,17 @@ class Game:
                 self.state = State.RED_LIGHT
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
                 self.startRed = True
-                t = threading.Thread(target=play, args=(sound,))
+                self.sound_speed = sound_length/self.state_duration
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                # t = threading.Thread(target=play, args=(sound,))
                 t.start()
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
                 self.state = State.GREEN_LIGHT
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-                self.sound_speed = self.sound_speed * 1.1
-                # t = threading.Thread(target=play_sound, args=(self.sound_speed))
-                t = threading.Thread(target=play, args=(sound,))
+                self.sound_speed = sound_length/self.state_duration
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                # t = threading.Thread(target=play, args=(sound,))
                 t.start()
                 # play_sound(self.sound_speed)
                 print("Current State: GREEN LIGHT")
