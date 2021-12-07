@@ -1,6 +1,8 @@
 import cv2
 import os
 import numpy as np
+import threading
+#from arduino import *
 from collections import namedtuple
 
 from deep_sort.tracker import Tracker
@@ -34,6 +36,7 @@ class PlayerTracker:
         self.encoder = create_box_encoder(os.path.join(YOLOv4_TINY_MODEL_DIR, 'mars-small128.pb'), batch_size=1)
         self.players = []
         self.eliminationQueue = []
+        #self.laser = threading.Thread(target=point_laser, args=(self.players,))
 
     def detectPlayers(self, frame, conf_threshold, nms_threshold, start, redLight, players, outs, end=0):
         # Detect objects
@@ -99,15 +102,19 @@ class PlayerTracker:
                     cv2.rectangle(frame, bbox, (0, 255, 0), 10)
                 elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': 
                     bbox = track.to_tlbr()
-                    cv2.rectangle(frame, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 10)
-                cv2.putText(frame, f'ID: {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
+                    cv2.rectangle(frame, bbox[0:2].astype(int), bbox[2:].astype(int), (0, 255, 0), 2)
+                cv2.putText(frame, f'Player {track.track_id}', (int(bbox[0]), int(bbox[1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
             
 
         for player in players:
             if player.number not in outs and player.out == 1:
                 print('player %d out' % player.number)
                 outs.append(player.number)
-            
+        '''
+        if not self.laser.is_alive():
+            self.laser = threading.Thread(target=point_laser, args=(players,))
+            self.laser.start()
+            '''
         return frame, players, outs
     
 class Person:
@@ -122,6 +129,7 @@ class Person:
         self.warning = 0
         self.out = 0
         self.current_box = box
+        self.lasered = 0
         
     def update_current(self, box):
         self.current_box = box
