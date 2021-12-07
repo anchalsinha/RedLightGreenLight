@@ -1,5 +1,6 @@
 import asyncio
 import cv2
+import time
 import numpy as np
 from enum import Enum
 
@@ -47,8 +48,9 @@ class Game:
     async def timer(self, fps):
         while True:
             # control periodic tasks
+            start_time = time.time()
             self.manage_state()
-            self.state_timer += 1/fps
+            self.state_timer += 1/fps + (time.time() - start_time)
             await asyncio.sleep(1/fps)
 
     def connect(self):
@@ -64,9 +66,7 @@ class Game:
         print("Starting game")
         print("Current State: GREEN LIGHT")
         # play_sound(self.sound_speed)
-        self.sound_speed = sound_length/self.state_duration
         t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-        # t = threading.Thread(target=play, args=(sound,))
         t.start()
 
     def reset_state_timer(self, duration_range):
@@ -105,19 +105,18 @@ class Game:
         if self.state_timer > self.state_duration:
             if self.state == State.GREEN_LIGHT:
                 self.state = State.RED_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
                 self.startRed = True
-                self.sound_speed = sound_length/self.state_duration
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-                # t = threading.Thread(target=play, args=(sound,))
                 t.start()
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
                 self.state = State.GREEN_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-                self.sound_speed = sound_length/self.state_duration
+                self.sound_speed = self.sound_speed * 1.1
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-                # t = threading.Thread(target=play, args=(sound,))
                 t.start()
                 # play_sound(self.sound_speed)
                 print("Current State: GREEN LIGHT")
