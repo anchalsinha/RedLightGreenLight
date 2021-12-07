@@ -7,6 +7,7 @@ from config import *
 from utilities import *
 from sound import *
 from person import PlayerTracker
+import threading
 
 class State(Enum):
     CONNECTING = 0
@@ -17,6 +18,7 @@ class State(Enum):
     RED_LIGHT_LASER = 5
     GAME_END = 6
 
+sound = AudioSegment.from_file(file)
 
 class Game:
     def __init__(self):
@@ -60,7 +62,9 @@ class Game:
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
         print("Starting game")
         print("Current State: GREEN LIGHT")
-        play_sound(self.sound_speed)
+        # play_sound(self.sound_speed)
+        t = threading.Thread(target=play, args=(sound,))
+        t.start()
 
     def reset_state_timer(self, duration_range):
         self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
@@ -100,13 +104,18 @@ class Game:
                 self.state = State.RED_LIGHT
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
                 self.startRed = True
+                t = threading.Thread(target=play, args=(sound,))
+                t.start()
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
                 self.state = State.GREEN_LIGHT
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-                print("Current State: GREEN LIGHT")
                 self.sound_speed = self.sound_speed * 1.1
-                play_sound(self.sound_speed)
+                # t = threading.Thread(target=play_sound, args=(self.sound_speed))
+                t = threading.Thread(target=play, args=(sound,))
+                t.start()
+                # play_sound(self.sound_speed)
+                print("Current State: GREEN LIGHT")
 
         if self.state == State.CONNECTING:
             self.connect()
