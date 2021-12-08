@@ -100,14 +100,10 @@ class Game:
             cv2.imshow('Frame', frame)
             cv2.waitKey(1)
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-        self.sound_speed = dur()/(self.state_duration*3)
         t = threading.Thread(target=play_sound, args=(self.sound_speed,))
         t.start()
         print("Starting game")
         print("Current State: GREEN LIGHT")
-        # play_sound(self.sound_speed)
-        t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-        t.start()
 
     def reset_state_timer(self, duration_range):
         self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
@@ -118,7 +114,12 @@ class Game:
         if not ret:
             return
         frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, False, self.players, self.outs)
-        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
@@ -130,7 +131,11 @@ class Game:
         if not ret:
             return
         frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, True, self.players, self.outs)
-        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
@@ -150,7 +155,12 @@ class Game:
         if not ret:
             return
         frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, True, self.players, self.outs, end=1)
-        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (255, 0, 0), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (255, 0, 0), 25)
+
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
@@ -175,12 +185,8 @@ class Game:
                 print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 self.n_green_light_states += 1
-                self.sound_speed = self.sound_speed * 1.1
-                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-                t.start()
-                # play_sound(self.sound_speed)
+                # self.sound_speed = self.sound_speed * 1.1
                 print("Current State: GREEN LIGHT")
-                self.sound_speed = dur()/(self.state_duration*3)
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
                 t.start()
 
