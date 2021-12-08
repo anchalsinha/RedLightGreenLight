@@ -9,6 +9,9 @@ import time
 from config import *
 from utilities import *
 from person import PlayerTracker
+from sound import *
+from arduino import *
+import threading
 
 class State(Enum):
     CONNECTING = 0
@@ -30,6 +33,8 @@ class Game:
         self.state_duration = 0
         self.state_timer = 0
         self.start = True
+        self.sound_speed = 1
+        self.x = 0
     
     def run(self):
         loop = asyncio.get_event_loop()
@@ -61,6 +66,8 @@ class Game:
         
         # 10 seconds from start to be ready
         current = time.time()
+        t = threading.Thread(target=countdown, args=())
+        t.start()
         while 1:
             ret, frame = self.videoStream.read()
             
@@ -87,6 +94,9 @@ class Game:
             cv2.imshow('Frame', frame)
             cv2.waitKey(1)
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
+        self.sound_speed = dur()/(self.state_duration*3)
+        t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+        t.start()
         print("Starting game")
         print("Current State: GREEN LIGHT")
 
@@ -131,9 +141,20 @@ class Game:
                 self.startRed = True
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
+                
+                for player in self.players:
+                    if player.out == 1 and player.lasered == 0:
+                        while self.playerTracker.laser.is_alive():
+                            continue
+                        point_laser(self.players, self.x)
+                        break
+                    
                 self.state = State.GREEN_LIGHT
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 print("Current State: GREEN LIGHT")
+                self.sound_speed = dur()/(self.state_duration*3)
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                t.start()
 
         if self.state == State.CONNECTING:
             self.connect()
