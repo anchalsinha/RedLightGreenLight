@@ -1,11 +1,13 @@
 import asyncio
 import cv2
+import time
 import numpy as np
 from enum import Enum
 import time
 
 from config import *
 from utilities import *
+from sound import *
 from person import PlayerTracker
 from sound import *
 #from arduino import *
@@ -21,6 +23,8 @@ class State(Enum):
     GAME_END = 6,
     SHOW_RESULTS = 7
 
+sound = AudioSegment.from_file(file)
+sound_length = 4
 
 class Game:
     def __init__(self):
@@ -35,6 +39,7 @@ class Game:
         self.sound_speed = 1
 
         self.n_green_light_states = 0
+        
     
     def run(self):
         loop = asyncio.get_event_loop()
@@ -50,8 +55,9 @@ class Game:
     async def timer(self, fps):
         while True:
             # control periodic tasks
+            start_time = time.time()
             self.manage_state()
-            self.state_timer += 1/fps
+            self.state_timer += 1/fps + (time.time() - start_time)
             await asyncio.sleep(1/fps)
 
     def connect(self):
@@ -99,6 +105,9 @@ class Game:
         t.start()
         print("Starting game")
         print("Current State: GREEN LIGHT")
+        # play_sound(self.sound_speed)
+        t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+        t.start()
 
     def reset_state_timer(self, duration_range):
         self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
@@ -155,14 +164,21 @@ class Game:
                 self.state = State.GAME_END
             elif self.state == State.GREEN_LIGHT:
                 self.state = State.RED_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
-                self.startRed = True
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                t.start()
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
                 self.shoot_players()
                 self.state = State.GREEN_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 self.n_green_light_states += 1
+                self.sound_speed = self.sound_speed * 1.1
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                t.start()
+                # play_sound(self.sound_speed)
                 print("Current State: GREEN LIGHT")
                 self.sound_speed = dur()/(self.state_duration*3)
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
@@ -170,6 +186,7 @@ class Game:
 
         if self.state == State.CONNECTING:
             self.connect()
+        
         elif self.state == State.GAME_START:
             self.start_game()
         elif self.state == State.GREEN_LIGHT:
