@@ -33,12 +33,14 @@ class Game:
         self.state = State.CONNECTING
         self.players = []
         self.outs = []
+
+        self.game_timer = 0
         self.state_duration = 0
         self.state_timer = 0
         self.start = True
+
         self.sound_speed = 1
 
-        self.n_green_light_states = 0
         
     
     def run(self):
@@ -58,6 +60,7 @@ class Game:
             start_time = time.time()
             self.manage_state()
             self.state_timer += 1/fps + (time.time() - start_time)
+            self.game_timer += 1/fps + (time.time() - start_time)
             await asyncio.sleep(1/fps)
 
     def connect(self):
@@ -170,7 +173,7 @@ class Game:
 
     def manage_state(self):
         if self.state_timer > self.state_duration:
-            if self.n_green_light_states >= N_TOTAL_GREEN_LIGHT_STATES:
+            if self.game_timer >= GAME_DURATION:
                 self.state = State.GAME_END
             elif self.state == State.GREEN_LIGHT:
                 self.state = State.RED_LIGHT
@@ -184,8 +187,6 @@ class Game:
                 self.state = State.GREEN_LIGHT
                 print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-                self.n_green_light_states += 1
-                # self.sound_speed = self.sound_speed * 1.1
                 print("Current State: GREEN LIGHT")
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
                 t.start()

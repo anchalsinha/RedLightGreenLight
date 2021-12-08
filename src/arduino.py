@@ -15,7 +15,7 @@ def motor_angle(ang):
 def point_laser(players):
     for player in players:
         if player.out == 1 and player.lasered == 0:
-            player.lasered == 1
+            player.lasered = 1
             # calculate angle
             angle = np.random.randint(0,180)
             motor_angle(str(angle))
