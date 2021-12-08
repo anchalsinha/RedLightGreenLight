@@ -4,6 +4,7 @@ import time
 import numpy as np
 from enum import Enum
 import time
+import sys
 
 from config import *
 from utilities import *
@@ -158,25 +159,24 @@ class Game:
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
-        if all([player.out == 1 and player.lasered == 0 for player in self.players]): # all players lasered
-            self.state = State.GAME_END
+        if all([(player.out == 1 and player.lasered == 1) or player.out == 0 for player in self.players]): # all players lasered
+            self.state = State.SHOW_RESULTS
 
 
     def manage_state(self):
         if self.state_timer > self.state_duration:
-            if self.game_timer >= GAME_DURATION:
+            if self.game_timer >= GAME_DURATION and self.state != State.SHOW_RESULTS:
                 self.state = State.GAME_END
             elif self.state == State.GREEN_LIGHT:
                 self.state = State.RED_LIGHT
-                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT or self.state == State.GAME_START:
                 self.shoot_players()
                 self.state = State.GREEN_LIGHT
-                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 print("Current State: GREEN LIGHT")
+                self.sound_speed = dur()/self.state_duration
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
                 t.start()
 
@@ -192,6 +192,7 @@ class Game:
         elif self.state == State.GAME_END:
             self.game_end()
         elif self.state == State.SHOW_RESULTS:
+            print('Showing Results')
             losers = ""
             winners = ""
             for player in self.players:
@@ -202,4 +203,5 @@ class Game:
                     
             print("Winners:"+winners)
             print("Losers:"+losers)
-            # pass
+            sys.exit(0)
+

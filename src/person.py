@@ -70,12 +70,14 @@ class PlayerTracker:
             if not track.is_confirmed():# or track.time_since_update > 1:
                 continue 
             
-            if end == 1:
-                players[track.track_id-1].out = 1
-            
             box = track.to_tlbr()
             box = [int(b) for b in box]
             center = [(box[0]+box[2])/2,(box[1]+box[3])/2]
+            if center[0] > 1280 or center[0] < 0:
+                continue
+
+            if end == 1:
+                players[track.track_id-1].out = 1
             
             # Initialize players
             if start:
