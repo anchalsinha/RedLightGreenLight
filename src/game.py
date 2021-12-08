@@ -66,11 +66,10 @@ class Game:
         self.videoStream = cv2.VideoCapture(0)
         # self.videoStream = cv2.VideoCapture('udpsrc port=5200 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)JPEG, payload=(int)26" ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
         self.state = State.GAME_START
+        self.reset_state_timer((10,10)) 
 
     def start_game(self):
         # every player should be in a line, so start tracking and identification
-        self.state = State.GREEN_LIGHT
-        
         # 10 seconds from start to be ready
         current = time.time()
         t = threading.Thread(target=countdown, args=())
@@ -100,11 +99,6 @@ class Game:
                 
             cv2.imshow('Frame', frame)
             cv2.waitKey(1)
-        self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-        t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-        t.start()
-        print("Starting game")
-        print("Current State: GREEN LIGHT")
 
     def reset_state_timer(self, duration_range):
         self.state_duration = np.random.uniform(duration_range[0], duration_range[1])
@@ -176,10 +170,8 @@ class Game:
                 self.state = State.RED_LIGHT
                 print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
-                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
-                t.start()
                 print("Current State: RED LIGHT")
-            elif self.state == State.RED_LIGHT:
+            elif self.state == State.RED_LIGHT or self.state == State.GAME_START:
                 self.shoot_players()
                 self.state = State.GREEN_LIGHT
                 print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')

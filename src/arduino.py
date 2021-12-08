@@ -4,7 +4,7 @@ import serial
 import time
 import numpy as np
 
-Arduino = serial.Serial('COM4',9600)
+Arduino = serial.Serial('/dev/tty.usbmodem112401',9600)
 
 def motor_angle(ang):   
     Arduino.write('0'.encode())
