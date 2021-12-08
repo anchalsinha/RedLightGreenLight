@@ -1,13 +1,13 @@
-import nest_asyncio as nest_asyncio
-nest_asyncio.apply()
 import asyncio
 import cv2
+import time
 import numpy as np
 from enum import Enum
 import time
 
 from config import *
 from utilities import *
+from sound import *
 from person import PlayerTracker
 from sound import *
 from arduino import *
@@ -20,8 +20,11 @@ class State(Enum):
     GREEN_LIGHT = 3
     RED_LIGHT = 4
     RED_LIGHT_LASER = 5
-    GAME_END = 6
+    GAME_END = 6,
+    SHOW_RESULTS = 7
 
+sound = AudioSegment.from_file(file)
+sound_length = 4
 
 class Game:
     def __init__(self):
@@ -30,6 +33,8 @@ class Game:
         self.state = State.CONNECTING
         self.players = []
         self.outs = []
+
+        self.game_timer = 0
         self.state_duration = 0
         self.state_timer = 0
         self.start = True
@@ -50,8 +55,10 @@ class Game:
     async def timer(self, fps):
         while True:
             # control periodic tasks
+            start_time = time.time()
             self.manage_state()
-            self.state_timer += 1/fps
+            self.state_timer += 1/fps + (time.time() - start_time)
+            self.game_timer += 1/fps + (time.time() - start_time)
             await asyncio.sleep(1/fps)
 
     def connect(self):
@@ -94,7 +101,6 @@ class Game:
             cv2.imshow('Frame', frame)
             cv2.waitKey(1)
         self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
-        self.sound_speed = dur()/(self.state_duration*3)
         t = threading.Thread(target=play_sound, args=(self.sound_speed,))
         t.start()
         print("Starting game")
@@ -109,55 +115,82 @@ class Game:
         if not ret:
             return
         frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, False, self.players, self.outs)
-        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 255, 0), 25)
+
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
 
     def red_light(self):
-        '''
-        TODO: 
-         - Randomly select duration and make it minimum duration of red light state
-         - Check movement continuously
-         - If movement detected, fire the laser (probably queue up the shooting)
-         - Add fixed delay after the shooting
-        '''
-
         # Reset timer to fixed duration after laser is fired
         # self.reset_state_timer(RED_LIGHT_POST_DETECTION_DURATION) 
         ret, frame = self.videoStream.read()
         if not ret:
             return
         frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, True, self.players, self.outs)
-        cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (0, 0, 255), 25)
         cv2.imshow('Frame', frame)
         cv2.waitKey(1)
 
+    def shoot_players(self):
+        for player in self.players:
+            if player.out == 1 and player.lasered == 0:
+                while self.playerTracker.laser.is_alive():
+                    continue
+                point_laser(self.players)
+                break
+    
+    def game_end(self):
+        # Reset timer to fixed duration after laser is fired
+        # self.reset_state_timer(RED_LIGHT_POST_DETECTION_DURATION) 
+        ret, frame = self.videoStream.read()
+        if not ret:
+            return
+        frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, True, self.players, self.outs, end=1)
+        
+        if cv2.__version__ == '4.5.1': # anchal's version
+            cv2.rectangle(frame, [0, 0, frame.shape[1],frame.shape[0]], (255, 0, 0), 25)
+        elif cv2.__version__ == '4.5.4-dev' or cv2.__version__ == '4.5.4': # joel/isha's version
+            cv2.rectangle(frame, [0,0], [frame.shape[1],frame.shape[0]], (255, 0, 0), 25)
+
+        cv2.imshow('Frame', frame)
+        cv2.waitKey(1)
+
+        if all([player.out == 1 and player.lasered == 0 for player in self.players]): # all players lasered
+            self.state = State.GAME_END
+
+
     def manage_state(self):
         if self.state_timer > self.state_duration:
-            if self.state == State.GREEN_LIGHT:
+            if self.game_timer >= GAME_DURATION:
+                self.state = State.GAME_END
+            elif self.state == State.GREEN_LIGHT:
                 self.state = State.RED_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(RED_LIGHT_DURATION_RANGE)
-                self.startRed = True
+                t = threading.Thread(target=play_sound, args=(self.sound_speed,))
+                t.start()
                 print("Current State: RED LIGHT")
             elif self.state == State.RED_LIGHT:
-                
-                for player in self.players:
-                    if player.out == 1 and player.lasered == 0:
-                        while self.playerTracker.laser.is_alive():
-                            continue
-                        point_laser(self.players, self.x)
-                        break
-                    
+                self.shoot_players()
                 self.state = State.GREEN_LIGHT
+                print(f'Actual state duration: {self.state_timer}, target: {self.state_duration}')
                 self.reset_state_timer(GREEN_LIGHT_DURATION_RANGE)
                 print("Current State: GREEN LIGHT")
-                self.sound_speed = dur()/(self.state_duration*3)
                 t = threading.Thread(target=play_sound, args=(self.sound_speed,))
                 t.start()
 
         if self.state == State.CONNECTING:
             self.connect()
+        
         elif self.state == State.GAME_START:
             self.start_game()
         elif self.state == State.GREEN_LIGHT:
@@ -165,8 +198,8 @@ class Game:
         elif self.state == State.RED_LIGHT:
             self.red_light()
         elif self.state == State.GAME_END:
-            frame, self.players, self.outs = self.playerTracker.detectPlayers(frame, 0.65, 0.4, self.start, self.players, self.outs, end=1)
-        
+            self.game_end()
+        elif self.state == State.SHOW_RESULTS:
             losers = ""
             winners = ""
             for player in self.players:

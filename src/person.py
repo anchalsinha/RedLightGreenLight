@@ -99,6 +99,10 @@ class PlayerTracker:
                 players[track.track_id-1].box = box
                 players[track.track_id-1].origin = center
                 
+            
+            if track.track_id > len(players):
+                continue
+
             if start == False and players[track.track_id-1].out == 0:
                 # draw bbox 
                 if cv2.__version__ == '4.5.1': # idek
