@@ -107,7 +107,8 @@ To test out our project, we want to measure success for each system. We first te
 </summary>
 
 <iframe src="https://drive.google.com/file/d/1BPUF_jrIdmWA7rql7Ji6l_i6wpx8PQOt/preview" width="640" height="480" allow="autoplay"></iframe>
-<br></br>
+<br>
+
 </details>
 
 
@@ -125,7 +126,8 @@ With the computer camera, we then played the game again, as seen in the followin
 </summary>
 
 <iframe src="https://drive.google.com/file/d/1peshBYv475qRYQOeW8WWst6J2ZbvCDQx/preview" width="640" height="480" allow="autoplay"></iframe>
-<br></br>
+<br>
+
 </details>
 
 
@@ -141,7 +143,8 @@ The game is able to correctly sense movement and declare player 3 out. It also d
 </summary>
 
 <iframe src="https://drive.google.com/file/d/14v7Cakkbt08IaHfC-_vuKKec-dq7woLc/preview" width="640" height="480" allow="autoplay"></iframe>
-<br></br>
+<br>
+
 </details>
 
 The algorithm correctly determines the moving player to be out while still keeping the other player in the game, even though a player walks across. Thus the system handles various cases of detection correctly. The final video below shows the laser system correctly pointing at a person who moves during a red light and is now out. 
@@ -156,7 +159,8 @@ The algorithm correctly determines the moving player to be out while still keepi
 </summary>
 
 <iframe src="https://drive.google.com/file/d/12A3V_vAadb4cOhCGmkEsvoJqGtSqhAFP/preview" width="640" height="480" allow="autoplay"></iframe>
-<br></br>
+<br>
+
 </details>
 
 Overall, it displays all important qualities of red light, green light as seen in the show. The laser system and the algorithms implemented to replicate aspects of the game all function as desired.
