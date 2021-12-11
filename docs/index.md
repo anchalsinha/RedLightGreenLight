@@ -11,6 +11,7 @@ Project red light, green light strives to replicate the first game of the popula
 # Required Submissions
 
 * [Proposal](proposal)
-* [Midterm Checkpoint Presentation Slides](http://)
-* [Final Presentation Slides](http://)
+* [Midterm Checkpoint Presentation Slides](https://docs.google.com/presentation/d/1aRvWmjZ3IgQeyhP-wyvAlRCQOpZjz8_jdfmSAQZ5tz8/edit?usp=sharing)
+* [Final Presentation Slides](https://docs.google.com/presentation/d/1q33nrFB11TKBY4npGfS6K-929Piz5Rx9kSZW2njk46I/edit?usp=sharing)
+* [Final Presentation Video](https://www.youtube.com/watch?v=ara54wkDpvY)
 * [Final Report](report)
